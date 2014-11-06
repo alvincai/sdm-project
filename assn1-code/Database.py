@@ -18,9 +18,15 @@ class Database:
     def __init__(self):
         try:
             self.cnx = mysql.connector.connect(**self.config1)
-            #self.cnx = mysql.connector.connect(user='sdm', password='password',
-            #                                host='127.0.0.1', database='sdmAssn1')
             self.cursor = self.cnx.cursor()
+
+            # Delete all rows from HealthRecords!!
+            statement = ("Truncate table HealthRecords")
+            self.cursor.execute(statement)
+            self.cnx.commit()
+
+        # TODO: Probably want to reset all other tables as well
+
         except mysql.connector.Error as err:
             if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
                 print("Something is wrong with your user name or password")
@@ -29,15 +35,23 @@ class Database:
             else:
                 print(err)
 
-    def insertRecord(self, ID, data):
+    def insertRecord(self, ID, ctI, ctPg):
         statement = (   "INSERT INTO HealthRecords"
-                        "(PatientID, EncryptedData)"
-                        "VALUES (%s, %s)")
+                        "(PatientID, EncryptedDataI, EncryptedDataPG)"
+                        "VALUES (%s, %s, %s)")
 
 
-        self.cursor.execute(statement, (ID, json.dumps(data)) )
-        cnx.commit()
+        self.cursor.execute(statement, (ID, ctI, ctPg) )
+        self.cnx.commit()
 
+    def selectRecord(self, ID):
+        statement = "SELECT EncryptedDataI, EncryptedDataPG from HealthRecords where PatientID = %s"
+        self.cursor.execute(statement, (ID,))
+        rows = self.cursor.fetchall()
+        return rows
+        #for (EncryptedDataI, EncryptedDataPG) in self.cursor:
+            #print (EncryptedDataI)
+            #print (EncryptedDataPG)
 
     def done(self):
         self.cursor.close()
@@ -45,6 +59,7 @@ class Database:
 
 def main():
     db = Database()
-
+    db.insertRecord("Alice", "in", "Wonderland")
+    db.selectRecord("Alice")
 
 if __name__ == "__main__": main()

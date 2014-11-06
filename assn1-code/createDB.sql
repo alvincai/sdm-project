@@ -21,6 +21,7 @@ create table IF NOT EXISTS Patient(
 create table IF NOT EXISTS HealthRecords(
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     PatientID VARCHAR(20),
-    EncryptedData VARCHAR(1000),
+    EncryptedDataI VARCHAR(1000),
+    EncryptedDataPG VARCHAR(1000),
     Signature VARCHAR(1000));
 
