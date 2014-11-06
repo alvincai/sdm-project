@@ -20,13 +20,6 @@ class Database:
             self.cnx = mysql.connector.connect(**self.config1)
             self.cursor = self.cnx.cursor()
 
-            # Delete all rows from HealthRecords!!
-            statement = ("Truncate table HealthRecords")
-            self.cursor.execute(statement)
-            self.cnx.commit()
-
-        # TODO: Probably want to reset all other tables as well
-
         except mysql.connector.Error as err:
             if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
                 print("Something is wrong with your user name or password")
@@ -39,10 +32,12 @@ class Database:
         statement = (   "INSERT INTO HealthRecords"
                         "(PatientID, EncryptedDataI, EncryptedDataPG)"
                         "VALUES (%s, %s, %s)")
+        try:
+            self.cursor.execute(statement, (ID, ctI, ctPg) )
+            self.cnx.commit()
+        except mysql.connector.Error as err:
+            print(err)
 
-
-        self.cursor.execute(statement, (ID, ctI, ctPg) )
-        self.cnx.commit()
 
     def selectRecord(self, ID):
         statement = "SELECT EncryptedDataI, EncryptedDataPG from HealthRecords where PatientID = %s"
@@ -52,6 +47,15 @@ class Database:
         #for (EncryptedDataI, EncryptedDataPG) in self.cursor:
             #print (EncryptedDataI)
             #print (EncryptedDataPG)
+
+    def reset(self):
+        # Delete all rows from HealthRecords!!
+        statement = ("Truncate table HealthRecords")
+        self.cursor.execute(statement)
+        self.cnx.commit()
+
+        # TODO: Probably want to reset all other tables as well
+
 
     def done(self):
         self.cursor.close()
