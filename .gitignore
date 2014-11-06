@@ -1,0 +1,6 @@
+#log and tmp files
+*.aux
+*.log
+
+# Compiled files
+*.pyc
