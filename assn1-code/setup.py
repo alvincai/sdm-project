@@ -2,30 +2,13 @@
 
 from Database import *
 from Patient import *
+from Entity import *
 from mysql.connector import errorcode
 from charm.toolbox.pairinggroup import PairingGroup,pc_element
 from charm.schemes.pre_mg07 import *
 from charm.core.engine.util import objectToBytes,bytesToObject
 from charm.core.math.integer import integer, serialize, deserialize
-import copy
 
-
-# Class for entities such as Hospitals, Doctors, Insurance and Health Clubs
-class Entity:
-    def __init__(self, ID, proxy):
-        self.ID =  ID
-        self.sk = proxy.keygen(self.ID)         # private key
-
-        # public parameters of the proxy re-encryption
-        self.pre = proxy.pre
-        self.params = proxy.params
-        self.group = proxy.group
-
-    # ciphertext here denotes to a '2nd-level' ciphertext which has been re-encrypted by the proxy.
-    def dec(self, ciphertext):
-        return self.pre.decryptSecondLevel(self.params, self.sk, ciphertext['IDsrc'], self.ID, ciphertext)
-        # Regarding the 3rd input variable ciphertext['IDsrc'], we use this because ciphertext is a python dictionary.
-        # The idsrc can be extracted directly from it and does not need to be explicity stated.
 
 
 class Proxy:
@@ -59,23 +42,31 @@ class Proxy:
             rk = self.reEncryptionKeys[keystring]
             return self.pre.reEncrypt(self.params, ID1, rk, ciphertext)
         else:
-            print("No re-Encryption Key exists for this request")
-            return
+            return "false"
 
-
+    # List Re-Encryption Keys
+    def listRk(self):
+        return(self.reEncryptionKeys.keys())
 
 def main():
+
     # Setup keys and clean Database
     db1 = Database()
     db1.reset()
     proxy = Proxy()
     id1 = "Alice"
-    id2 = "AIG Insurance"
+    id2 = "AIG Insurance"           # Insurance
+    id3 = "Fitness First"           # Health Club
+    id4 = "Catherina Ziekenhuis"    # Hospital
+    id4 = "Madison Gurkha"          # Employer
+    id5 = "Doctor Frankenstein"     # Doctor
     Alice = Patient(id1, proxy)
-    AIGinsurance = Entity(id2, proxy)
+    AIG = Entity(id2, proxy)
+    FitnessFirst = Entity(id3, proxy)
+    Ziekenhuis = Entity(id4, proxy)
 
 
-    # Demonstrate Encryption, Storage and Retrieval
+    # Patient inserting (encrypted) information into her own Medical Record
     msg1 = "Blood Type A+"
     msg2 = "Height 1.75m"
     msg3 = "Weight 60 kg"
@@ -87,26 +78,27 @@ def main():
     Alice.store("Medical", msg4)
     Alice.store("Training", msg5)
 
-    # Look in Database to observe ciphertext
-    print("General Health Records:")
-    Alice.read("General")
-    print("Medical Health Records:")
-    Alice.read("Medical")
 
-    print("Training Health Records:")
+    # Patient can read her own Medical Records
+    print("\nGeneral Health Records:")
+    Alice.read("General")
+    print("\nMedical Health Records:")
+    Alice.read("Medical")
+    print("\nTraining Health Records:")
     Alice.read("training")
 
 
+    # Entity (Insurance) can read a Patient's records if assigned 'read' permission by patient
+    reEncryptionKey = Alice.genRencryptionK("General", AIG.ID, proxy)
+    print("\nRe-Encryption keys currently stored in proxy:")
+    print(proxy.listRk())
+    print("\nAIG tries to read General-type records of Alice:")
+    AIG.read("Alice", "General", proxy)
+    print("\nAIG tries to read Medical-type records of Alice:")
+    AIG.read("Alice", "Medical", proxy)
+    print("\nAIG tries to read Training-type records of Alice:")
+    AIG.read("Alice", "Training", proxy)
 
-    #reEncryptionKey = Alice.genRencryptionK("General", AIGinsurance.ID, proxy)
-    #ct2 = proxy.reEncrypt(Alice.General[0], AIGinsurance.ID, ct)
-    ##print(ct2)
-    #pt2 = AIGinsurance.dec(ct2)
-    ##print(pt2)
-
-    ##print (proxy.reEncryptionKeys)
-    #Alice.removeRencryptionK("General", AIGinsurance.ID, proxy)
-    #print (proxy.reEncryptionKeys)
 
 
     return
