@@ -68,3 +68,27 @@ class Entity:
         # The idsrc can be extracted directly from it and does not need to be explicity stated.
 
 
+
+    # Encrypts the msg (of type recordType) and stores it in Patient ID's Database
+    # TODO: Include signature !
+    def store(self, ID, recordType, msg):
+        if recordType.lower() == "general":
+            ID = ID + "General"
+        elif recordType.lower() == "medical":
+            ID = ID + "Medical"
+        elif recordType.lower() == "training":
+            ID = ID + "Training"
+        else:
+            print("Please enter the correct record type")
+            return
+        ct = self.pre.encrypt(self.params, ID, msg)
+
+        # Serialise the ct for storage in MySql using appropriate charm API for each element type
+        # Differentiate between the Integer element and the PairingGroup elements (Otherwise cannot seialise)
+        # After serialisation, type is byte
+        db = Database()
+        ctI = serialize(ct['C']['C'])               # type of ctI is Integer. Use serialise API
+        del ct['C']['C']
+        ctPg = objectToBytes(ct, self.group)       # type of ctPG is PairingGroup. Use objectToBytes API
+        db.insertRecord(ID, ctI, ctPg)
+        db.done()

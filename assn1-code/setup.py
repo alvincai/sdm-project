@@ -100,6 +100,11 @@ def main():
     AIG.read("Alice", "Training", proxy)
 
 
+    # Entity (Insurance) inserting data into Patient's record (Should not be allowed, but currently is)
+    msgError = "This record should not be here"
+    AIG.store("Alice", "Medical", msgError)
+    print("\nMedical Health Records after an insert by AIG")
+    Alice.read("Medical")
 
     return
 
