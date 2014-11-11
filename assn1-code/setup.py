@@ -54,6 +54,7 @@ def signKeyGen(ID, masterSK, hess, group, db):
     (pk, sk) = hess.keygen(masterSK, ID) #generate keypair for this person
     pk = objectToBytes(pk, group)
     sk = objectToBytes(sk, group)
+    # print("Key for ID: ", ID, pk, sk)
     db.insertSignKey(ID, pk)
     return sk
 
@@ -106,35 +107,48 @@ def main():
     Alice.store("Medical", msg4)
     Alice.store("Training", msg5)
 
-    # # commented the below to prevent spam
-
-    # # Patient can read her own Medical Records
-    # print("Patient reading her own health records:\n")
-    # print("\n\tGeneral Health Records:")
-    # Alice.read("General")
-    # print("\n\tMedical Health Records:")
-    # Alice.read("Medical")
-    # print("\n\tTraining Health Records:")
-    # Alice.read("training")
-
-
-    # # Entity (Insurance) can read a Patient's records if assigned 'read' permission by patient
-    # reEncryptionKey = Alice.genRencryptionK("General", AIG.ID, proxy)
-    # print("\nRe-Encryption keys currently stored in proxy:")
-    # print(proxy.listRk())
-    # print("\nAIG tries to read General-type records of Alice:")
-    # AIG.read("Alice", "General", proxy)
-    # print("\nAIG tries to read Medical-type records of Alice:")
-    # AIG.read("Alice", "Medical", proxy)
-    # print("\nAIG tries to read Training-type records of Alice:")
-    # AIG.read("Alice", "Training", proxy)
-
-
-    # Entity (Insurance) inserting data into Patient's record (Should not be allowed, but currently is)
-    msgError = "Estimated Time of Death: 11-November-2014"
-    AIG.store("Alice", "Medical", msgError)
-    print("\nMedical Health Records after an insert by AIG")
+    # Patient can read her own Medical Records
+    print("Patient reading her own health records:\n")
+    print("\n\tGeneral Health Records:")
+    Alice.read("General")
+    print("\n\tMedical Health Records:")
     Alice.read("Medical")
+    print("\n\tTraining Health Records:")
+    Alice.read("training")
+
+
+    # Entity (Insurance) can read a Patient's records if assigned 'read' permission by patient
+    reEncryptionKey = Alice.genRencryptionK("General", AIG.ID, proxy)
+    print("\nRe-Encryption keys currently stored in proxy:")
+    print(proxy.listRk())
+    print("\nAIG tries to read General-type records of Alice:")
+    AIG.read("Alice", "General", proxy)
+    print("\nAIG tries to read Medical-type records of Alice:")
+    AIG.read("Alice", "Medical", proxy)
+    print("\nAIG tries to read Training-type records of Alice:")
+    AIG.read("Alice", "Training", proxy)
+
+    #TODO: Authorise AIG to write to Alice's record
+    
+    # Entity (Insurance) inserting data into Patient's record
+    msg = "Estimated Time of Death: 11-November-2014"
+    AIG.store("Alice", "Medical", msg)
+    print("\nMedical Health Records after an (authorised) insert by AIG")
+    Alice.read("Medical")
+
+    #TODO: Change insurance company to VGZ
+
+    # Entity (VGZ) inserting data into Alice's record
+    # msg = "Alice is insured by VGZ as of today"
+    # VGZ.store("Alice", "Medical", msg)
+    # print("\nMedical Health Records after an (authorised) insert by VGZ")
+    # Alice.read("Medical")
+
+    #TODO: While VGZ is the insurance company, AIG should not be able to write anymore
+    # msg = "Alice is a heavy smoker"
+    # AIG.store("Alice", "Medical", msg)
+    # print("\nMedical Health Records after an (illegal) insert by AIG")
+    # Alice.read("Medical")
 
     return
 

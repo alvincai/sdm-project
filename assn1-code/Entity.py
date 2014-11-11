@@ -6,6 +6,7 @@ from charm.schemes.pre_mg07 import *
 
 from charm.core.engine.util import objectToBytes,bytesToObject
 from charm.core.math.integer import integer, serialize, deserialize
+import time
 
 
 # Class for entities such as Hospitals, Doctors, Insurance and Health Clubs
@@ -25,6 +26,20 @@ class Entity:
         self.params = proxy.params
         self.group = proxy.group
 
+    #MD: Todo: This should validate the signature and return True if it checks out, False if it doesnt
+    # Should check the date too
+    def verifySig(self, signerID, date, msg, signature):
+        db = Database()
+        rows = db.getSignPubKey("master")
+        # for row in rows :
+        mPK_bytes = bytes(rows[0][0], 'utf-8')              # bytes of the master public key
+        mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
+        # Now get the pubKey of the signerID
+        rows = db.getSignPubKey(signerID)
+        sPK_bytes = bytes(rows[0][0], 'utf-8')
+        # print("Validating sig from: ", signerID, ": " , sPK_bytes, "\n")
+        sPK = bytesToObject(sPK_bytes, self.signGroup)
+        return(self.hess.verify(mPK, sPK, (msg, date), signature)) # True or False
 
     # Decrypts Patient Data from Database
     # 1. Check if re-encryption key exists for the request
@@ -63,7 +78,15 @@ class Entity:
                 ct2 = proxy.reEncrypt(ID1, self.ID, ctReconstruct)   # Pass CT to proxy for re-encrytion
                 if (ct2 != "false"):
                     pt = self.dec2(ct2)
-                    print (pt)
+                    signerID = row[2] # get the id of the signer
+
+                    sig_bytes = bytes(row[3], 'utf-8') #MD: This has to change once we take the date into account!
+                    signature = bytesToObject(sig_bytes, self.signGroup) # Got the actual signature
+                    signdate = row[4] #Get the date of the signature (which is also signed by the same signature)
+                    if self.verifySig(signerID, signdate, pt, signature): #check if the signature is valid
+                        print("Verified record from ", signerID, ": ", pt, "\n")
+                    else:
+                        print("INVALID record from ", signerID, ": ", pt, "\n")
             db.done()
 
         else:
@@ -96,9 +119,8 @@ class Entity:
         # Get the mastser public key from the SignKeys table
         db = Database()
         rows = db.getSignPubKey("master")
-        for row in rows :
-            mPK_bytes = bytes(row[0], 'utf-8')              # bytes of the master public key
-            mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
+        mPK_bytes = bytes(rows[0][0], 'utf-8')              # bytes of the master public key
+        mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
         signature = objectToBytes(self.hess.sign(mPK, self.signK, msg), self.signGroup)
         
         # Serialise the ct for storage in MySql using appropriate charm API for each element type

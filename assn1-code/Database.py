@@ -40,6 +40,21 @@ class Database:
         except mysql.connector.Error as err:
             print(err)
 
+    #MD: This module should add an authorization for an EntityID (no DateEnd), and revoke the old one by settings DateEnd
+    def authorizeEntityWrite(self, PatientID, newEntityID, HealthRecordType, DateStart):
+        #First check if there is already an EntityID authorized to access this HealthRecordType for this PatientID
+        statement = ("SELECT EntityID FROM AuthorisedInsert WHERE HealthRecordType = %s AND PatientID = %s")
+        #   Check the signature of the current tuple if it exists
+        #       If it checks out, revoke access to this EntityID by setting the DateEnd to today and re-signing the new data
+        statement = ("UPDATE AuthorisedInsert SET DateEnd = %s, Signature = %s WHERE HealthRecordType = %s AND PatientID = %s AND EntityID = %s")
+
+        #Create new tuple with newEntityID
+        #   Check if it exists
+        #       Generate newSignature
+        #       Write new tuple to DB
+        statement = ("INSERT INTO AuthorisedInsert (PatientID, EntityID, HealthRecordType, DateStart, Signature) VALUES (%s, %s, %s, %s, %s)")
+
+
     def insertSignKey(self, ID, pk):
         statement = (   "INSERT INTO SignKeys"
                         "(id, pubKey)"
@@ -63,7 +78,7 @@ class Database:
 
 
     def selectRecord(self, ID):
-        statement = ("SELECT EncryptedDataI, EncryptedDataPG, SignerID, Signature from HealthRecords where PatientID = %s")
+        statement = ("SELECT EncryptedDataI, EncryptedDataPG, SignerID, Signature, SignatureDate from HealthRecords where PatientID = %s")
         self.cursor.execute(statement, (ID,))
         rows = self.cursor.fetchall()
         return rows

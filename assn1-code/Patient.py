@@ -6,6 +6,7 @@ from charm.toolbox.pairinggroup import PairingGroup,pc_element
 from charm.schemes.pre_mg07 import *
 from charm.core.engine.util import objectToBytes,bytesToObject
 from charm.core.math.integer import integer, serialize, deserialize
+import time
 
 class Patient:
     def __init__(self, ID, proxy, signK, signGroup, hess):
@@ -46,13 +47,34 @@ class Patient:
         ctI = serialize(ct['C']['C'])               # type of ctI is Integer. Use serialise API
         del ct['C']['C']
         ctPg = objectToBytes(ct, self.group)       # type of ctPG is PairingGroup. Use objectToBytes API
-        # db.insertRecord(ID, ctI, ctPg)
+  
+        ###################
+        #MD: Todo: Add date to signature
+        ######################
+        # Get the mastser public key from the SignKeys table
+        rows = db.getSignPubKey("master")
+        mPK_bytes = bytes(rows[0][0], 'utf-8')              # bytes of the master public key
+        mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
+
+        date = time.strftime("%Y-%m-%d")
+        signature = objectToBytes(self.hess.sign(mPK, self.signK, (msg, date)), self.signGroup)
+
+        db.insertRecord(ID, ctI, ctPg, signature, date, self.ID)
         db.done()
 
-    #MD: Todo: This should validate the signature and return True if it checks out, False if it doesnt
-    # Should check the date too
-    def verifySig(self, Signer, date):
-        return 0
+    #MD: Todo: Should check the date too
+    def verifySig(self, signerID, date, msg, signature):
+        db = Database()
+        rows = db.getSignPubKey("master")
+        # for row in rows :
+        mPK_bytes = bytes(rows[0][0], 'utf-8')              # bytes of the master public key
+        mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
+        # Now get the pubKey of the signerID
+        rows = db.getSignPubKey(signerID)
+        sPK_bytes = bytes(rows[0][0], 'utf-8')
+        sPK = bytesToObject(sPK_bytes, self.signGroup)
+        date = time.strftime("%Y-%m-%d")
+        return(self.hess.verify(mPK, sPK, (msg, date), signature)) # True or False
 
     # Decrypts Data from Database of type "recordType"
     def read(self, recordType):
@@ -70,16 +92,9 @@ class Patient:
         # 2. Re-construct Ciphertext by converting it to a byte object, then call Charm's deSerialisation API
         # 3. Pass reconstructed ciphertext to dec() function to get plaintext
         #####################
-        #MD: Todo: Check signature of the data for each record that is being read
-        #print(hess.verify(master_public_key, public_key, msg, signature))
+        #MD: Todo: Add date checking
         #####################
-        # But get the master key first
         db = Database()
-        rows = db.getSignPubKey("master")
-        # for row in rows :
-        mPK_bytes = bytes(rows[0][0], 'utf-8')              # bytes of the master public key
-        mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
-
         rows = db.selectRecord(ID) # Now fetch the ciphertexts and verify the signatures and print the result
         for row in rows :
             ctI_bytes = bytes(row[0], 'utf-8')              # Integer element of CT
@@ -91,17 +106,12 @@ class Patient:
             signerID = row[2] # get the id of the signer
             sig_bytes = bytes(row[3], 'utf-8')
             signature = bytesToObject(sig_bytes, self.signGroup) # Got the actual signature
-
-            # Now get the pubKey of the signerID
-            db2 = Database()
-            rows = db2.getSignPubKey(signerID)
-            sPK_bytes = bytes(rows[0][0], 'utf-8')
-            sPK = bytesToObject(sPK_bytes, self.signGroup)
-
-            if self.hess.verify(mPK, sPK, pt, signature):
-                print(pt, " - Validated data from ", signerID, "\n")
+            signdate = row[4]
+            if self.verifySig(signerID, signdate, pt, signature): #check if the signature is valid
+                print("Verified record from ", signerID, ": ", pt, "\n")
             else:
-                print("Signature mismatch for: ", pt, "\n")
+                print("INVALID record from ", signerID, ": ", pt, "\n")
+
         db.done()
 
     # Each re-encryption key is for only one type of health record (recordType). The delegatee is ID2.
