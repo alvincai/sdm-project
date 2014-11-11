@@ -8,7 +8,7 @@ from charm.toolbox.pairinggroup import PairingGroup,pc_element
 from charm.schemes.pre_mg07 import *
 from charm.core.engine.util import objectToBytes,bytesToObject
 from charm.core.math.integer import integer, serialize, deserialize
-
+from charm.schemes.pksig import pksig_hess #for the signatures
 
 
 class Proxy:
@@ -48,22 +48,50 @@ class Proxy:
     def listRk(self):
         return(self.reEncryptionKeys.keys())
 
+# Generate Signing Keypair. Pass the hess object as we need to create the keys in the same context
+#MD: I've put this in a function as we need to call it for every ID we have
+def signKeyGen(ID, masterSK, hess, group, db):
+    (pk, sk) = hess.keygen(masterSK, ID) #generate keypair for this person
+    pk = objectToBytes(pk, group)
+    sk = objectToBytes(sk, group)
+    db.insertSignKey(ID, pk)
+    return sk
+
 def main():
 
     # Setup keys and clean Database
     db1 = Database()
     db1.reset()
     proxy = Proxy()
+    signGroup = PairingGroup('SS512', secparam=1024) #Possibly the same as for encryption
+    hess = pksig_hess.Hess(signGroup)
+    (masterPK, masterSK) = hess.setup() #master pub and priv keys for signing (other keys are deduced from the master secret key)
+
+    # Insert the master public key to the db with SignKeys.id="master", it is needed for signing and verifying
+    # masterSK (secret key) gets passed only to the signKeyGen function below
+    db1.insertSignKey("master", objectToBytes(masterPK, signGroup))
+
+    # Create some identities (names). Do NOT use the same identity twice! It will destroy the signature scheme implementation.
     id1 = "Alice"
     id2 = "AIG Insurance"           # Insurance
     id3 = "Fitness First"           # Health Club
     id4 = "Catherina Ziekenhuis"    # Hospital
     id4 = "Madison Gurkha"          # Employer
     id5 = "Doctor Frankenstein"     # Doctor
-    Alice = Patient(id1, proxy)
-    AIG = Entity(id2, proxy)
-    FitnessFirst = Entity(id3, proxy)
-    Ziekenhuis = Entity(id4, proxy)
+
+    # Create keys for all id's and store the public part in the database under SignKeys.pubKey with the PatientID or EntityID in SignKeys.id
+    id1_signK = signKeyGen(id1, masterSK, hess, signGroup, db1)
+    id2_signK = signKeyGen(id2, masterSK, hess, signGroup, db1)
+    id3_signK = signKeyGen(id3, masterSK, hess, signGroup, db1)
+    id4_signK = signKeyGen(id4, masterSK, hess, signGroup, db1)
+    id5_signK = signKeyGen(id5, masterSK, hess, signGroup, db1)
+
+
+    # Instantiate the patients and entities
+    Alice = Patient(id1, proxy, id1_signK, signGroup, hess)
+    AIG = Entity(id2, proxy, id2_signK, signGroup, hess)
+    FitnessFirst = Entity(id3, proxy, id3_signK, signGroup, hess)
+    Ziekenhuis = Entity(id4, proxy, id4_signK, signGroup, hess)
 
 
     # Patient inserting (encrypted) information into her own Medical Record
@@ -78,30 +106,32 @@ def main():
     Alice.store("Medical", msg4)
     Alice.store("Training", msg5)
 
+    # # commented the below to prevent spam
 
-    # Patient can read her own Medical Records
-    print("\nGeneral Health Records:")
-    Alice.read("General")
-    print("\nMedical Health Records:")
-    Alice.read("Medical")
-    print("\nTraining Health Records:")
-    Alice.read("training")
+    # # Patient can read her own Medical Records
+    # print("Patient reading her own health records:\n")
+    # print("\n\tGeneral Health Records:")
+    # Alice.read("General")
+    # print("\n\tMedical Health Records:")
+    # Alice.read("Medical")
+    # print("\n\tTraining Health Records:")
+    # Alice.read("training")
 
 
-    # Entity (Insurance) can read a Patient's records if assigned 'read' permission by patient
-    reEncryptionKey = Alice.genRencryptionK("General", AIG.ID, proxy)
-    print("\nRe-Encryption keys currently stored in proxy:")
-    print(proxy.listRk())
-    print("\nAIG tries to read General-type records of Alice:")
-    AIG.read("Alice", "General", proxy)
-    print("\nAIG tries to read Medical-type records of Alice:")
-    AIG.read("Alice", "Medical", proxy)
-    print("\nAIG tries to read Training-type records of Alice:")
-    AIG.read("Alice", "Training", proxy)
+    # # Entity (Insurance) can read a Patient's records if assigned 'read' permission by patient
+    # reEncryptionKey = Alice.genRencryptionK("General", AIG.ID, proxy)
+    # print("\nRe-Encryption keys currently stored in proxy:")
+    # print(proxy.listRk())
+    # print("\nAIG tries to read General-type records of Alice:")
+    # AIG.read("Alice", "General", proxy)
+    # print("\nAIG tries to read Medical-type records of Alice:")
+    # AIG.read("Alice", "Medical", proxy)
+    # print("\nAIG tries to read Training-type records of Alice:")
+    # AIG.read("Alice", "Training", proxy)
 
 
     # Entity (Insurance) inserting data into Patient's record (Should not be allowed, but currently is)
-    msgError = "This record should not be here"
+    msgError = "Estimated Time of Death: 11-November-2014"
     AIG.store("Alice", "Medical", msgError)
     print("\nMedical Health Records after an insert by AIG")
     Alice.read("Medical")

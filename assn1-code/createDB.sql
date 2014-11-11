@@ -21,7 +21,23 @@ create table IF NOT EXISTS Patient(
 create table IF NOT EXISTS HealthRecords(
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     PatientID VARCHAR(20),
+    SignerID VARCHAR(20),
     EncryptedDataI VARCHAR(1000),
     EncryptedDataPG VARCHAR(1000),
-    Signature VARCHAR(1000));
+    Signature VARCHAR(1000),
+    SignatureDate DATETIME);
 
+create table IF NOT EXISTS AuthorisedInsert(
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    PatientID VARCHAR(20),
+    EntityID VARCHAR(20),
+    HealthRecordType VARCHAR(64),
+    DateStart DATETIME,
+    DateEnd DATETIME,
+    Signature VARCHAR(1000)
+);
+
+create table IF NOT EXISTS SignKeys (
+    id VARCHAR(20),
+    pubKey VARCHAR(1000)
+);

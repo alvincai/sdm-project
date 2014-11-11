@@ -3,6 +3,8 @@
 import mysql.connector
 from mysql.connector import errorcode
 import json
+from charm.schemes.pksig import pksig_hess #for the signatures
+
 
 class Database:
     # Try to connect to database (sdmAssn1) with predefined username (sdm) and passwd (password)
@@ -28,19 +30,40 @@ class Database:
             else:
                 print(err)
 
-    def insertRecord(self, ID, ctI, ctPg):
+    def insertRecord(self, ID, ctI, ctPg, Signature, date, SignerID):
         statement = (   "INSERT INTO HealthRecords"
-                        "(PatientID, EncryptedDataI, EncryptedDataPG)"
-                        "VALUES (%s, %s, %s)")
+                        "(PatientID, EncryptedDataI, EncryptedDataPG, Signature, SignatureDate, SignerID)"
+                        "VALUES (%s, %s, %s, %s, %s, %s)")
         try:
-            self.cursor.execute(statement, (ID, ctI, ctPg) )
+            self.cursor.execute(statement, (ID, ctI, ctPg, Signature, date, SignerID) )
             self.cnx.commit()
+        except mysql.connector.Error as err:
+            print(err)
+
+    def insertSignKey(self, ID, pk):
+        statement = (   "INSERT INTO SignKeys"
+                        "(id, pubKey)"
+                        "VALUES (%s, %s)" )
+        try:
+            self.cursor.execute(statement, (ID, pk) )
+            self.cnx.commit()
+        except mysql.connector.Error as err:
+            print(err)
+    
+    # Returns objectToBytes() of the public key stored in the database for "ID"
+    def getSignPubKey(self, ID):
+        statement = ( "SELECT pubKey FROM SignKeys WHERE id = %s" )
+        try:
+            self.cursor.execute(statement, (ID,) )
+            # self.cnx.commit()
+            rows = self.cursor.fetchall()
+            return rows
         except mysql.connector.Error as err:
             print(err)
 
 
     def selectRecord(self, ID):
-        statement = "SELECT EncryptedDataI, EncryptedDataPG from HealthRecords where PatientID = %s"
+        statement = ("SELECT EncryptedDataI, EncryptedDataPG, SignerID, Signature from HealthRecords where PatientID = %s")
         self.cursor.execute(statement, (ID,))
         rows = self.cursor.fetchall()
         return rows
@@ -51,6 +74,12 @@ class Database:
     def reset(self):
         # Delete all rows from HealthRecords!!
         statement = ("Truncate table HealthRecords")
+        self.cursor.execute(statement)
+        self.cnx.commit()
+
+        # Delete every public key, since we need to generate new ones on each run
+        # Possible solution: Make the master key persistent somewhere
+        statement = ("Truncate table SignKeys")
         self.cursor.execute(statement)
         self.cnx.commit()
 

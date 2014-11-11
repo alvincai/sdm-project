@@ -3,15 +3,22 @@
 from Database import *
 from charm.toolbox.pairinggroup import PairingGroup,pc_element
 from charm.schemes.pre_mg07 import *
+
 from charm.core.engine.util import objectToBytes,bytesToObject
 from charm.core.math.integer import integer, serialize, deserialize
 
 
 # Class for entities such as Hospitals, Doctors, Insurance and Health Clubs
 class Entity:
-    def __init__(self, ID, proxy):
+    def __init__(self, ID, proxy, signK, signGroup, hess):
         self.ID =  ID
         self.sk = proxy.keygen(self.ID)         # private key
+        self.signGroup = signGroup
+        self.signK = bytesToObject(signK, self.signGroup)
+        self.hess = hess
+
+        #MD: Todo: Create/get signing key for the entity
+
 
         # public parameters of the proxy re-encryption
         self.pre = proxy.pre
@@ -37,6 +44,10 @@ class Entity:
             print("Please enter the correct record type")
             return
 
+        ###################
+        #MD: Todo: Check signature of the data for each record that is being read
+        # First need to make sure the sig is inserted below 
+        ###################
         keystring = ID1 + ":" + self.ID
         if keystring in proxy.listRk():
 
@@ -59,7 +70,6 @@ class Entity:
             print("Sorry, no Re-Encryption Key exists for this request!")
             return
 
-
     # Decrypt 2nd level ciphertext with own secret key
     # ciphertext here denotes to a '2nd-level' ciphertext which has been re-encrypted by the proxy.
     def dec2(self, ciphertext):
@@ -67,10 +77,7 @@ class Entity:
         # Regarding the 3rd input variable ciphertext['IDsrc'], we use this because ciphertext is a python dictionary.
         # The idsrc can be extracted directly from it and does not need to be explicity stated.
 
-
-
     # Encrypts the msg (of type recordType) and stores it in Patient ID's Database
-    # TODO: Include signature !
     def store(self, ID, recordType, msg):
         if recordType.lower() == "general":
             ID = ID + "General"
@@ -83,12 +90,23 @@ class Entity:
             return
         ct = self.pre.encrypt(self.params, ID, msg)
 
+        ###################
+        #MD: Todo: Add date to signature
+        ######################
+        # Get the mastser public key from the SignKeys table
+        db = Database()
+        rows = db.getSignPubKey("master")
+        for row in rows :
+            mPK_bytes = bytes(row[0], 'utf-8')              # bytes of the master public key
+            mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
+        signature = objectToBytes(self.hess.sign(mPK, self.signK, msg), self.signGroup)
+        
         # Serialise the ct for storage in MySql using appropriate charm API for each element type
         # Differentiate between the Integer element and the PairingGroup elements (Otherwise cannot seialise)
         # After serialisation, type is byte
-        db = Database()
         ctI = serialize(ct['C']['C'])               # type of ctI is Integer. Use serialise API
         del ct['C']['C']
         ctPg = objectToBytes(ct, self.group)       # type of ctPG is PairingGroup. Use objectToBytes API
-        db.insertRecord(ID, ctI, ctPg)
+
+        db.insertRecord(ID, ctI, ctPg, signature, "2012-01-01", self.ID)
         db.done()
