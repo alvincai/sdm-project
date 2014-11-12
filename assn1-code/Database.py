@@ -40,20 +40,51 @@ class Database:
         except mysql.connector.Error as err:
             print(err)
 
+    def getAuthorisedEntities(self, PatientID, HealthRecordType, date):
+        statement = ("SELECT EntityID, DateStart, Signature FROM AuthorisedInsert WHERE HealthRecordType = %s AND PatientID= %s AND DateStart >= %s AND DateEnd IS NULL")
+        try:
+            self.cursor.execute(statement, (HealthRecordType, PatientID, date,) )
+            rows = self.cursor.fetchall()
+            return rows # We return the result to the caller for further processing
+        except mysql.connector.Error as err:
+            print(err)
+
+    def revokeAuthorisedEntity(self, PatientID, EntityID, HealthRecordType, DateEnd, Signature):
+        statement = ("UPDATE AuthorisedInsert SET DateEnd = %s, Signature = %s WHERE HealthRecordType = %s AND PatientID = %s AND EntityID = %s")
+        try:
+            self.cursor.execute(statement, (DateEnd, Signature, HealthRecordType, PatientID, EntityID))
+            self.cnx.commit()
+        except mysql.connector.Error as err:
+            print(err)
+
     #MD: This module should add an authorization for an EntityID (no DateEnd), and revoke the old one by settings DateEnd
-    def authorizeEntityWrite(self, PatientID, newEntityID, HealthRecordType, DateStart):
-        #First check if there is already an EntityID authorized to access this HealthRecordType for this PatientID
-        statement = ("SELECT EntityID FROM AuthorisedInsert WHERE HealthRecordType = %s AND PatientID = %s")
+    def insertAuthorisation(self, PatientID, EntityID, HealthRecordType, DateStart, Signature):
+        # #First check if there is already an EntityID authorized to access this HealthRecordType for this PatientID
+        # statement = ("SELECT EntityID FROM AuthorisedInsert WHERE HealthRecordType = %s AND PatientID = %s AND DateEnd IS NULL")
+        # try:
+        #     self.cursor.execute(statement, (HealthRecordType, PatientID) )
+        #     # self.cnx.commit()
+        #     rows = self.cursor.fetchall()
+        #     if rows[0]:
+        #         oldEntityID = rows[0][0] # Get the currently authorised entities
+        #     else: oldEntityID = False
+        # except mysql.connector.Error as err:
+        #     print(err)
+
         #   Check the signature of the current tuple if it exists
         #       If it checks out, revoke access to this EntityID by setting the DateEnd to today and re-signing the new data
-        statement = ("UPDATE AuthorisedInsert SET DateEnd = %s, Signature = %s WHERE HealthRecordType = %s AND PatientID = %s AND EntityID = %s")
+        # statement = ("UPDATE AuthorisedInsert SET DateEnd = %s, Signature = %s WHERE HealthRecordType = %s AND PatientID = %s AND EntityID = %s")
 
         #Create new tuple with newEntityID
         #   Check if it exists
         #       Generate newSignature
         #       Write new tuple to DB
         statement = ("INSERT INTO AuthorisedInsert (PatientID, EntityID, HealthRecordType, DateStart, Signature) VALUES (%s, %s, %s, %s, %s)")
-
+        try:
+            self.cursor.execute(statement, (PatientID, EntityID, HealthRecordType, DateStart, Signature) )
+            self.cnx.commit()
+        except mysql.connector.Error as err:
+            print(err)
 
     def insertSignKey(self, ID, pk):
         statement = (   "INSERT INTO SignKeys"
@@ -64,7 +95,7 @@ class Database:
             self.cnx.commit()
         except mysql.connector.Error as err:
             print(err)
-    
+
     # Returns objectToBytes() of the public key stored in the database for "ID"
     def getSignPubKey(self, ID):
         statement = ( "SELECT pubKey FROM SignKeys WHERE id = %s" )
@@ -72,19 +103,22 @@ class Database:
             self.cursor.execute(statement, (ID,) )
             # self.cnx.commit()
             rows = self.cursor.fetchall()
-            return rows
+            PK_bytes = bytes(rows[0][0], 'utf-8')              # bytes of the first public key
+
+            return PK_bytes # Return only the first hit as a byte array
         except mysql.connector.Error as err:
             print(err)
 
 
     def selectRecord(self, ID):
         statement = ("SELECT EncryptedDataI, EncryptedDataPG, SignerID, Signature, SignatureDate from HealthRecords where PatientID = %s")
-        self.cursor.execute(statement, (ID,))
-        rows = self.cursor.fetchall()
-        return rows
-        #for (EncryptedDataI, EncryptedDataPG) in self.cursor:
-            #print (EncryptedDataI)
-            #print (EncryptedDataPG)
+        try:
+            self.cursor.execute(statement, (ID,))
+            rows = self.cursor.fetchall()
+            return rows
+        except mysql.connector.Error as err:
+            print(err)
+
 
     def reset(self):
         # Delete all rows from HealthRecords!!
@@ -98,6 +132,11 @@ class Database:
         self.cursor.execute(statement)
         self.cnx.commit()
 
+        # Delete all authorisations
+        statement = ("Truncate table AuthorisedInsert")
+        self.cursor.execute(statement)
+        self.cnx.commit()
+
         # TODO: Probably want to reset all other tables as well
 
 
@@ -105,6 +144,7 @@ class Database:
         self.cursor.close()
         self.cnx.close()
 
+# This only gets executed when calling the script directly, aka to test db connectivity
 def main():
     db = Database()
     db.insertRecord("Alice", "in", "Wonderland")

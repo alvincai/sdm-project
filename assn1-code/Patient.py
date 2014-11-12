@@ -47,16 +47,15 @@ class Patient:
         ctI = serialize(ct['C']['C'])               # type of ctI is Integer. Use serialise API
         del ct['C']['C']
         ctPg = objectToBytes(ct, self.group)       # type of ctPG is PairingGroup. Use objectToBytes API
-  
+
         ###################
         #MD: Todo: Add date to signature
         ######################
         # Get the mastser public key from the SignKeys table
-        rows = db.getSignPubKey("master")
-        mPK_bytes = bytes(rows[0][0], 'utf-8')              # bytes of the master public key
+        mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
         mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
 
-        date = time.strftime("%Y-%m-%d")
+        date = time.strftime("%Y-%m-%d %H:%M:%S")
         signature = objectToBytes(self.hess.sign(mPK, self.signK, (msg, date)), self.signGroup)
 
         db.insertRecord(ID, ctI, ctPg, signature, date, self.ID)
@@ -65,15 +64,12 @@ class Patient:
     #MD: Todo: Should check the date too
     def verifySig(self, signerID, date, msg, signature):
         db = Database()
-        rows = db.getSignPubKey("master")
-        # for row in rows :
-        mPK_bytes = bytes(rows[0][0], 'utf-8')              # bytes of the master public key
+        mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
         mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
         # Now get the pubKey of the signerID
-        rows = db.getSignPubKey(signerID)
-        sPK_bytes = bytes(rows[0][0], 'utf-8')
+        sPK_bytes = db.getSignPubKey(signerID)
         sPK = bytesToObject(sPK_bytes, self.signGroup)
-        date = time.strftime("%Y-%m-%d")
+        date = time.strftime("%Y-%m-%d %H:%M:%S")
         return(self.hess.verify(mPK, sPK, (msg, date), signature)) # True or False
 
     # Decrypts Data from Database of type "recordType"
@@ -107,12 +103,69 @@ class Patient:
             sig_bytes = bytes(row[3], 'utf-8')
             signature = bytesToObject(sig_bytes, self.signGroup) # Got the actual signature
             signdate = row[4]
-            if self.verifySig(signerID, signdate, pt, signature): #check if the signature is valid
-                print("Verified record from ", signerID, ": ", pt, "\n")
+
+            if self.verifySig(signerID, signdate, pt, signature):
+                # Signature is valid, now check if entity was authorised at this date
+                # Dont check our own data since we know it's valid if the signature checks out (we are always allowed to write to our own HealthRecord)
+                if signerID == self.ID:
+                    print("Verified record from ", signerID, ": ", pt, "\n")
+                else:
+                    rows = db.getAuthorisedEntities(self.ID, recordType, signdate)
+                    if rows:
+                        for row in rows:
+                            if signerID == row[0]:
+                                print("Verified record from ", signerID, ": ", pt, "\n")
+                            else:
+                                print("INVALID record from ", signerID, ": ", pt, "\n")
+                    else:
+                        #There were no authorisations for this date
+                        print("INVALID record from ", signerID, ": ", pt, "\n")
             else:
-                print("INVALID record from ", signerID, ": ", pt, "\n")
+                print("INVALID signature from ", signerID, ": ", pt, "\n")
 
         db.done()
+
+    #MD: Adds an authorisation for an entity to a patient for a specific HealthRecordType as of "today"
+    def authoriseEntity(self, EntityID, HealthRecordType):
+        db = Database()
+        # Create the tuple and sign it
+        mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
+        mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
+        date = time.strftime("%Y-%m-%d %H:%M:%S")
+        signature = objectToBytes(self.hess.sign(mPK, self.signK, (self.ID, EntityID, HealthRecordType, date)), self.signGroup)
+        db.insertAuthorisation(self.ID, EntityID, HealthRecordType, date, signature)
+        db.done()
+
+    #MD: A patient can revoke an entity access to parts of his/her healthrecord
+    def revokeAuthorisedEntity(self, EntityID, HealthRecordType):
+        # First check if this entity is authorised
+        db = Database()
+        rows = db.getAuthorisedEntities(self.ID, HealthRecordType, "2999-12-31 00:00:00") #Get all authorised entities that are authorised before the year 2999
+        if rows:
+            for row in rows:
+                if EntityID == row[0]:
+                    found = True
+                    # Found the entity for this specific recordType. Check signature
+                    DateStart = row[1]
+                    signature = bytesToObject(bytes(row[2], 'utf-8'), self.signGroup)
+                    if(self.verifySig(self.ID, DateStart, (self.ID, EntityID, HealthRecordType), signature)):
+                        # Valid signature found, now revoke it by setting the DateEnd to today and re-signing
+                        # First we need to wait 1 second otherwise the script is too fast!
+                        time.sleep(1)
+                        DateEnd = time.strftime("%Y-%m-%d %H:%M:%S")
+                        mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
+                        mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
+                        signature = objectToBytes(self.hess.sign(mPK, self.signK, (self.ID, EntityID, HealthRecordType, DateEnd)), self.signGroup)
+                        db.revokeAuthorisedEntity(self.ID, EntityID, HealthRecordType, DateEnd, signature)
+                        print("Access for ", EntityID, " to write to ", HealthRecordType, " successfully revoked.")
+                    else:
+                        print("INVALID signature on authorisations")
+            if found == False:
+                print("Authorisation for ", EntityID, " to write to ", self.ID, "'s ", HealthRecordType, " data not found")
+        else:
+            print("Error: no authorisations found for ", self.ID, "'s ", HealthRecordType, " data!")
+        db.done()
+
 
     # Each re-encryption key is for only one type of health record (recordType). The delegatee is ID2.
     # Proxy's re-encryption key should be generated by the Delegator (Patient) as it requires secret key input
@@ -169,4 +222,3 @@ class Patient:
             return
 
         return self.pre.decryptFirstLevel(self.params, sk, ciphertext, ID)
-

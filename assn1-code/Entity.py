@@ -30,14 +30,11 @@ class Entity:
     # Should check the date too
     def verifySig(self, signerID, date, msg, signature):
         db = Database()
-        rows = db.getSignPubKey("master")
         # for row in rows :
-        mPK_bytes = bytes(rows[0][0], 'utf-8')              # bytes of the master public key
+        mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
         mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
         # Now get the pubKey of the signerID
-        rows = db.getSignPubKey(signerID)
-        sPK_bytes = bytes(rows[0][0], 'utf-8')
-        # print("Validating sig from: ", signerID, ": " , sPK_bytes, "\n")
+        sPK_bytes = db.getSignPubKey(signerID)
         sPK = bytesToObject(sPK_bytes, self.signGroup)
         return(self.hess.verify(mPK, sPK, (msg, date), signature)) # True or False
 
@@ -61,7 +58,7 @@ class Entity:
 
         ###################
         #MD: Todo: Check signature of the data for each record that is being read
-        # First need to make sure the sig is inserted below 
+        # First need to make sure the sig is inserted below
         ###################
         keystring = ID1 + ":" + self.ID
         if keystring in proxy.listRk():
@@ -118,11 +115,11 @@ class Entity:
         ######################
         # Get the mastser public key from the SignKeys table
         db = Database()
-        rows = db.getSignPubKey("master")
-        mPK_bytes = bytes(rows[0][0], 'utf-8')              # bytes of the master public key
+        mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
         mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
-        signature = objectToBytes(self.hess.sign(mPK, self.signK, msg), self.signGroup)
-        
+        date = time.strftime("%Y-%m-%d %H:%M:%S")
+        signature = objectToBytes(self.hess.sign(mPK, self.signK, (msg, date)), self.signGroup)
+
         # Serialise the ct for storage in MySql using appropriate charm API for each element type
         # Differentiate between the Integer element and the PairingGroup elements (Otherwise cannot seialise)
         # After serialisation, type is byte
@@ -130,5 +127,5 @@ class Entity:
         del ct['C']['C']
         ctPg = objectToBytes(ct, self.group)       # type of ctPG is PairingGroup. Use objectToBytes API
 
-        db.insertRecord(ID, ctI, ctPg, signature, "2012-01-01", self.ID)
+        db.insertRecord(ID, ctI, ctPg, signature, date, self.ID)
         db.done()

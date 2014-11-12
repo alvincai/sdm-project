@@ -1,5 +1,3 @@
-#! /usr/bin/python3
-
 from Database import *
 from Patient import *
 from Entity import *
@@ -93,6 +91,7 @@ def main():
     AIG = Entity(id2, proxy, id2_signK, signGroup, hess)
     FitnessFirst = Entity(id3, proxy, id3_signK, signGroup, hess)
     Ziekenhuis = Entity(id4, proxy, id4_signK, signGroup, hess)
+    Doctor = Entity(id5, proxy, id5_signK, signGroup, hess)
 
 
     # Patient inserting (encrypted) information into her own Medical Record
@@ -128,15 +127,25 @@ def main():
     print("\nAIG tries to read Training-type records of Alice:")
     AIG.read("Alice", "Training", proxy)
 
-    #TODO: Authorise AIG to write to Alice's record
-    
+    # Authorise AIG to write to Alice's record
+    print("\nAlice authorises Dr. Frankenstein to write to her Medical HealthRecord")
+    Alice.authoriseEntity("Doctor Frankenstein", "Medical")
+    print("\nDoctor Frankenstein stores data in Alice's Medical HealthRecord")
+    Doctor.store("Alice", "Medical", "Patient reported diarhea on 01-November-2014")
+
     # Entity (Insurance) inserting data into Patient's record
     msg = "Estimated Time of Death: 11-November-2014"
     AIG.store("Alice", "Medical", msg)
-    print("\nMedical Health Records after an (authorised) insert by AIG")
+    print("\nMedical Health Records after an (unauthorised) insert by AIG")
     Alice.read("Medical")
 
     #TODO: Change insurance company to VGZ
+    print("\nAlice revokes access to Dr. Frankenstein (First we pause 1 second because time needs to pass...)")
+    Alice.revokeAuthorisedEntity("Doctor Frankenstein", "Medical")
+
+    Doctor.store("Alice", "Medical", "Patient died 02-November-2014")
+    print("\nMedical Health Records after an (unauthorised) insert by Dr. F")
+    Alice.read("Medical")
 
     # Entity (VGZ) inserting data into Alice's record
     # msg = "Alice is insured by VGZ as of today"
