@@ -15,6 +15,7 @@ class Patient:
         self.pre = proxy.pre
         self.params = proxy.params
         self.group = proxy.group
+        self.proxy = proxy
 
         self.signGroup = signGroup
         self.signK = signK
@@ -70,7 +71,7 @@ class Patient:
         # Now get the pubKey of the signerID
         # sPK_bytes = db.getSignPubKey(signerID)
         # sPK = bytesToObject(sPK_bytes, self.signGroup)
-        date = time.strftime("%Y-%m-%d %H:%M:%S")
+        date = date.strftime("%Y-%m-%d %H:%M:%S")
         return(self.waters.verify(self.masterPK, signerID, ''.join(msg + date), signature)) # True or False
 
     # Decrypts Data from Database of type "recordType"
@@ -136,6 +137,14 @@ class Patient:
         signature = objectToBytes(self.waters.sign(self.masterPK, self.signK, ''.join(self.ID + EntityID + HealthRecordType + date)), self.signGroup)
         db.insertAuthorisation(self.ID, EntityID, HealthRecordType, date, signature)
         db.done()
+
+    def addEntity(self, EntityID, HealthRecordType):
+        self.authoriseEntity(EntityID, HealthRecordType)
+        self.genRencryptionK(HealthRecordType, EntityID, self.proxy)
+
+    def revokeEntity(self, EntityID, HealthRecordType):
+        self.revokeAuthorisedEntity(EntityID, HealthRecordType)
+        self.removeRencryptionK(HealthRecordType, EntityID, self.proxy)
 
     #MD: A patient can revoke an entity access to parts of his/her healthrecord
     def revokeAuthorisedEntity(self, EntityID, HealthRecordType):

@@ -125,9 +125,12 @@ def main():
 
     # Authorise AIG to write to Alice's record
     print("\nAlice authorises Dr. Frankenstein to write to her Medical HealthRecord")
-    Alice.authoriseEntity("Doctor Frankenstein", "Medical")
+    # Alice.authoriseEntity("Doctor Frankenstein", "Medical")
+    Alice.addEntity("Doctor Frankenstein", "Medical")
     print("\nDoctor Frankenstein stores data in Alice's Medical HealthRecord")
     Doctor.store("Alice", "Medical", "Patient reported diarhea on 01-November-2014")
+    print("\nHe can also read the medical part:")
+    Doctor.read("Alice", "Medical", proxy)
 
     # Entity (Insurance) inserting data into Patient's record
     msg = "Estimated Time of Death: 11-November-2014"
@@ -137,8 +140,8 @@ def main():
 
     #TODO: Change insurance company to VGZ
     print("\nAlice revokes access to Dr. Frankenstein (First we pause 1 second because time needs to pass...)")
-    Alice.revokeAuthorisedEntity("Doctor Frankenstein", "Medical")
-
+    # Alice.revokeAuthorisedEntity("Doctor Frankenstein", "Medical")
+    Alice.revokeEntity("Doctor Frankenstein", "Medical")
     time.sleep(1)
 
     Doctor.store("Alice", "Medical", "Patient died 02-November-2014")

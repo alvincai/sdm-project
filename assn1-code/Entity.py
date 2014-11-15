@@ -37,7 +37,7 @@ class Entity:
         # Now get the pubKey of the signerID
         # sPK_bytes = db.getSignPubKey(signerID)
         # sPK = bytesToObject(sPK_bytes, self.signGroup)
-        return(self.waters.verify(self.masterPK, signerID, ''.join(msg + date.strftime("%Y-%m-%d %H:%M:%s")), signature)) # True or False
+        return(self.waters.verify(self.masterPK, signerID, ''.join(msg + date.strftime("%Y-%m-%d %H:%M:%S")), signature)) # True or False
 
     # Decrypts Patient Data from Database
     # 1. Check if re-encryption key exists for the request
