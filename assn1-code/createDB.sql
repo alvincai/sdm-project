@@ -7,10 +7,6 @@
 
 
 -- create tables
-create table IF NOT EXISTS Proxy(
-    keystring VARCHAR(256),
-    reEncryptionKey VARCHAR(2048));
-
 create table IF NOT EXISTS HealthRecords(
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     PatientID VARCHAR(20),
