@@ -6,7 +6,7 @@ from charm.toolbox.pairinggroup import PairingGroup,pc_element
 from charm.schemes.pre_mg07 import *
 from charm.core.engine.util import objectToBytes,bytesToObject
 from charm.core.math.integer import integer, serialize, deserialize
-from charm.schemes.pksig import pksig_hess #for the signatures
+import charm.schemes.pksig.pksig_waters as pksig_waters #for the signatures
 
 
 class Proxy:
@@ -46,14 +46,10 @@ class Proxy:
     def listRk(self):
         return(self.reEncryptionKeys.keys())
 
-# Generate Signing Keypair. Pass the hess object as we need to create the keys in the same context
+# Generate Signing Keypair. Pass the waters object as we need to create the keys in the same context
 #MD: I've put this in a function as we need to call it for every ID we have
-def signKeyGen(ID, masterSK, hess, group, db):
-    (pk, sk) = hess.keygen(masterSK, ID) #generate keypair for this person
-    pk = objectToBytes(pk, group)
-    sk = objectToBytes(sk, group)
-    # print("Key for ID: ", ID, pk, sk)
-    db.insertSignKey(ID, pk)
+def signKeyGen(ID, masterSK, masterPK, waters, db, group):
+    sk = waters.keygen(masterPK, masterSK, ID) #generate keypair for this person
     return sk
 
 def main():
@@ -62,13 +58,13 @@ def main():
     db1 = Database()
     db1.reset()
     proxy = Proxy()
-    signGroup = PairingGroup('SS512', secparam=1024) #Possibly the same as for encryption
-    hess = pksig_hess.Hess(signGroup)
-    (masterPK, masterSK) = hess.setup() #master pub and priv keys for signing (other keys are deduced from the master secret key)
+    signGroup = PairingGroup('SS512') #Possibly the same as for encryption
+    waters = pksig_waters.WatersSig(signGroup)
+    (masterPK, masterSK) = waters.setup(5) #master pub and priv keys for signing (other keys are deduced from the master secret key)
 
     # Insert the master public key to the db with SignKeys.id="master", it is needed for signing and verifying
     # masterSK (secret key) gets passed only to the signKeyGen function below
-    db1.insertSignKey("master", objectToBytes(masterPK, signGroup))
+    # db1.insertSignKey("master", objectToBytes(masterPK, signGroup))
 
     # Create some identities (names). Do NOT use the same identity twice! It will destroy the signature scheme implementation.
     id1 = "Alice"
@@ -79,19 +75,19 @@ def main():
     id5 = "Doctor Frankenstein"     # Doctor
 
     # Create keys for all id's and store the public part in the database under SignKeys.pubKey with the PatientID or EntityID in SignKeys.id
-    id1_signK = signKeyGen(id1, masterSK, hess, signGroup, db1)
-    id2_signK = signKeyGen(id2, masterSK, hess, signGroup, db1)
-    id3_signK = signKeyGen(id3, masterSK, hess, signGroup, db1)
-    id4_signK = signKeyGen(id4, masterSK, hess, signGroup, db1)
-    id5_signK = signKeyGen(id5, masterSK, hess, signGroup, db1)
+    id1_signK = signKeyGen(id1, masterSK, masterPK, waters, signGroup, db1)
+    id2_signK = signKeyGen(id2, masterSK, masterPK, waters, signGroup, db1)
+    id3_signK = signKeyGen(id3, masterSK, masterPK, waters, signGroup, db1)
+    id4_signK = signKeyGen(id4, masterSK, masterPK, waters, signGroup, db1)
+    id5_signK = signKeyGen(id5, masterSK, masterPK, waters, signGroup, db1)
 
 
     # Instantiate the patients and entities
-    Alice = Patient(id1, proxy, id1_signK, signGroup, hess)
-    AIG = Entity(id2, proxy, id2_signK, signGroup, hess)
-    FitnessFirst = Entity(id3, proxy, id3_signK, signGroup, hess)
-    Ziekenhuis = Entity(id4, proxy, id4_signK, signGroup, hess)
-    Doctor = Entity(id5, proxy, id5_signK, signGroup, hess)
+    Alice = Patient(id1, proxy, id1_signK, signGroup, waters, masterPK)
+    AIG = Entity(id2, proxy, id2_signK, signGroup, waters, masterPK)
+    FitnessFirst = Entity(id3, proxy, id3_signK, signGroup, waters, masterPK)
+    Ziekenhuis = Entity(id4, proxy, id4_signK, signGroup, waters, masterPK)
+    Doctor = Entity(id5, proxy, id5_signK, signGroup, waters, masterPK)
 
 
     # Patient inserting (encrypted) information into her own Medical Record
@@ -142,6 +138,8 @@ def main():
     #TODO: Change insurance company to VGZ
     print("\nAlice revokes access to Dr. Frankenstein (First we pause 1 second because time needs to pass...)")
     Alice.revokeAuthorisedEntity("Doctor Frankenstein", "Medical")
+
+    time.sleep(1)
 
     Doctor.store("Alice", "Medical", "Patient died 02-November-2014")
     print("\nMedical Health Records after an (unauthorised) insert by Dr. F")

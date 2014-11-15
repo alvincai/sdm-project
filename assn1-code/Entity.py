@@ -11,12 +11,13 @@ import time
 
 # Class for entities such as Hospitals, Doctors, Insurance and Health Clubs
 class Entity:
-    def __init__(self, ID, proxy, signK, signGroup, hess):
+    def __init__(self, ID, proxy, signK, signGroup, waters, masterPK):
         self.ID =  ID
         self.sk = proxy.keygen(self.ID)         # private key
         self.signGroup = signGroup
-        self.signK = bytesToObject(signK, self.signGroup)
-        self.hess = hess
+        self.signK = signK
+        self.waters = waters
+        self.masterPK = masterPK
 
         #MD: Todo: Create/get signing key for the entity
 
@@ -31,12 +32,12 @@ class Entity:
     def verifySig(self, signerID, date, msg, signature):
         db = Database()
         # for row in rows :
-        mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
-        mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
+        # mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
+        # mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
         # Now get the pubKey of the signerID
-        sPK_bytes = db.getSignPubKey(signerID)
-        sPK = bytesToObject(sPK_bytes, self.signGroup)
-        return(self.hess.verify(mPK, sPK, (msg, date), signature)) # True or False
+        # sPK_bytes = db.getSignPubKey(signerID)
+        # sPK = bytesToObject(sPK_bytes, self.signGroup)
+        return(self.waters.verify(self.masterPK, signerID, ''.join(msg + date.strftime("%Y-%m-%d %H:%M:%s")), signature)) # True or False
 
     # Decrypts Patient Data from Database
     # 1. Check if re-encryption key exists for the request
@@ -93,7 +94,7 @@ class Entity:
     # Decrypt 2nd level ciphertext with own secret key
     # ciphertext here denotes to a '2nd-level' ciphertext which has been re-encrypted by the proxy.
     def dec2(self, ciphertext):
-        return self.pre.decryptSecondLevel(self.params, self.sk, ciphertext['IDsrc'], self.ID, ciphertext)
+        return self.pre.decryptSecondLevel(self.params, self.sk, ciphertext['IDsrc'], self.ID, ciphertext).decode("utf-8")
         # Regarding the 3rd input variable ciphertext['IDsrc'], we use this because ciphertext is a python dictionary.
         # The idsrc can be extracted directly from it and does not need to be explicity stated.
 
@@ -115,10 +116,10 @@ class Entity:
         ######################
         # Get the mastser public key from the SignKeys table
         db = Database()
-        mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
-        mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
+        # mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
+        # mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
         date = time.strftime("%Y-%m-%d %H:%M:%S")
-        signature = objectToBytes(self.hess.sign(mPK, self.signK, (msg, date)), self.signGroup)
+        signature = objectToBytes(self.waters.sign(self.masterPK, self.signK, ''.join(msg + date)), self.signGroup)
 
         # Serialise the ct for storage in MySql using appropriate charm API for each element type
         # Differentiate between the Integer element and the PairingGroup elements (Otherwise cannot seialise)

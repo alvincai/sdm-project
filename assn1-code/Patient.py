@@ -9,7 +9,7 @@ from charm.core.math.integer import integer, serialize, deserialize
 import time
 
 class Patient:
-    def __init__(self, ID, proxy, signK, signGroup, hess):
+    def __init__(self, ID, proxy, signK, signGroup, waters, masterPK):
         self.ID = ID
         #public parameters of the proxy re-encrpytion
         self.pre = proxy.pre
@@ -17,8 +17,9 @@ class Patient:
         self.group = proxy.group
 
         self.signGroup = signGroup
-        self.signK = bytesToObject(signK, self.signGroup)
-        self.hess = hess
+        self.signK = signK
+        self.waters = waters
+        self.masterPK = masterPK
 
         # Three types of keys associated with General, Medical and Training type records
         # Each key is stored as a list in the structure [public ID, secret key]
@@ -52,11 +53,11 @@ class Patient:
         #MD: Todo: Add date to signature
         ######################
         # Get the mastser public key from the SignKeys table
-        mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
-        mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
+        # mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
+        # mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
 
         date = time.strftime("%Y-%m-%d %H:%M:%S")
-        signature = objectToBytes(self.hess.sign(mPK, self.signK, (msg, date)), self.signGroup)
+        signature = objectToBytes(self.waters.sign(self.masterPK, self.signK, ''.join(msg + date)), self.signGroup)
 
         db.insertRecord(ID, ctI, ctPg, signature, date, self.ID)
         db.done()
@@ -64,13 +65,13 @@ class Patient:
     #MD: Todo: Should check the date too
     def verifySig(self, signerID, date, msg, signature):
         db = Database()
-        mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
-        mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
+        # mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
+        # mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
         # Now get the pubKey of the signerID
-        sPK_bytes = db.getSignPubKey(signerID)
-        sPK = bytesToObject(sPK_bytes, self.signGroup)
+        # sPK_bytes = db.getSignPubKey(signerID)
+        # sPK = bytesToObject(sPK_bytes, self.signGroup)
         date = time.strftime("%Y-%m-%d %H:%M:%S")
-        return(self.hess.verify(mPK, sPK, (msg, date), signature)) # True or False
+        return(self.waters.verify(self.masterPK, signerID, ''.join(msg + date), signature)) # True or False
 
     # Decrypts Data from Database of type "recordType"
     def read(self, recordType):
@@ -129,10 +130,10 @@ class Patient:
     def authoriseEntity(self, EntityID, HealthRecordType):
         db = Database()
         # Create the tuple and sign it
-        mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
-        mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
+        # mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
+        # mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
         date = time.strftime("%Y-%m-%d %H:%M:%S")
-        signature = objectToBytes(self.hess.sign(mPK, self.signK, (self.ID, EntityID, HealthRecordType, date)), self.signGroup)
+        signature = objectToBytes(self.waters.sign(self.masterPK, self.signK, ''.join(self.ID + EntityID + HealthRecordType + date)), self.signGroup)
         db.insertAuthorisation(self.ID, EntityID, HealthRecordType, date, signature)
         db.done()
 
@@ -140,7 +141,8 @@ class Patient:
     def revokeAuthorisedEntity(self, EntityID, HealthRecordType):
         # First check if this entity is authorised
         db = Database()
-        rows = db.getAuthorisedEntities(self.ID, HealthRecordType, "1999-01-01 00:00:00") #Get all authorised entities that are authorised after 1999
+        date = time.strftime("%Y-%m-%d %H:%M:%S")
+        rows = db.getAuthorisedEntities(self.ID, HealthRecordType, date) #Get all authorised entities that are authorised after 1999
         if rows:
             for row in rows:
                 if EntityID == row[0]:
@@ -148,14 +150,14 @@ class Patient:
                     # Found the entity for this specific recordType. Check signature
                     DateStart = row[1]
                     signature = bytesToObject(bytes(row[2], 'utf-8'), self.signGroup)
-                    if(self.verifySig(self.ID, DateStart, (self.ID, EntityID, HealthRecordType), signature)):
+                    if(self.verifySig(self.ID, DateStart, ''.join(self.ID + EntityID + HealthRecordType), signature)):
                         # Valid signature found, now revoke it by setting the DateEnd to today and re-signing
                         # First we need to wait 1 second otherwise the script is too fast!
                         time.sleep(1)
                         DateEnd = time.strftime("%Y-%m-%d %H:%M:%S")
-                        mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
-                        mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
-                        signature = objectToBytes(self.hess.sign(mPK, self.signK, (self.ID, EntityID, HealthRecordType, DateEnd)), self.signGroup)
+                        # mPK_bytes = db.getSignPubKey("master")              # bytes of the master public key
+                        # mPK = bytesToObject(mPK_bytes, self.signGroup)  # de-serialize the key before usage
+                        signature = objectToBytes(self.waters.sign(self.masterPK, self.signK, ''.join(self.ID + EntityID + HealthRecordType + DateEnd)), self.signGroup)
                         db.revokeAuthorisedEntity(self.ID, EntityID, HealthRecordType, DateEnd, signature)
                         print("Access for ", EntityID, " to write to ", HealthRecordType, " successfully revoked.")
                     else:
@@ -221,4 +223,4 @@ class Patient:
             print("Please enter the correct record type")
             return
 
-        return self.pre.decryptFirstLevel(self.params, sk, ciphertext, ID)
+        return self.pre.decryptFirstLevel(self.params, sk, ciphertext, ID).decode("utf-8")
