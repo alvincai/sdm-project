@@ -26,6 +26,7 @@ class Entity:
         self.pre = proxy.pre
         self.params = proxy.params
         self.group = proxy.group
+        self.proxy = proxy
 
     #MD: Todo: This should validate the signature and return True if it checks out, False if it doesnt
     # Should check the date too
@@ -45,7 +46,7 @@ class Entity:
     # 2. Re-construct Ciphertext by converting it to a byte object, then call Charm's deSerialisation API
     # 3. Ask Proxy to re-encrypt reconstructed ciphertext with Entities' key
     # 4. Pass level2 ciphertext to dec2() function to get plaintext
-    def read(self, ID1, recordType, proxy):
+    def read(self, ID1, recordType):
 
         if recordType.lower() == "general":
             ID1 = ID1 + "General"
@@ -62,7 +63,7 @@ class Entity:
         # First need to make sure the sig is inserted below
         ###################
         keystring = ID1 + ":" + self.ID
-        if keystring in proxy.listRk():
+        if keystring in self.proxy.listRk():
 
             db = Database()
             rows = db.selectRecord(ID1)
@@ -73,7 +74,7 @@ class Entity:
                 ctReconstruct = bytesToObject(ctPg_bytes, self.group)
                 ctReconstruct['C']['C'] = ctI_Reconstruct       # Complete Ciphertext from Integer and Pairing Group element
 
-                ct2 = proxy.reEncrypt(ID1, self.ID, ctReconstruct)   # Pass CT to proxy for re-encrytion
+                ct2 = self.proxy.reEncrypt(ID1, self.ID, ctReconstruct)   # Pass CT to proxy for re-encrytion
                 if (ct2 != "false"):
                     pt = self.dec2(ct2)
                     signerID = row[2] # get the id of the signer
