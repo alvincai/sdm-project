@@ -140,7 +140,7 @@ class Patient:
     def revokeAuthorisedEntity(self, EntityID, HealthRecordType):
         # First check if this entity is authorised
         db = Database()
-        rows = db.getAuthorisedEntities(self.ID, HealthRecordType, "2999-12-31 00:00:00") #Get all authorised entities that are authorised before the year 2999
+        rows = db.getAuthorisedEntities(self.ID, HealthRecordType, "1999-01-01 00:00:00") #Get all authorised entities that are authorised after 1999
         if rows:
             for row in rows:
                 if EntityID == row[0]:

@@ -41,9 +41,9 @@ class Database:
             print(err)
 
     def getAuthorisedEntities(self, PatientID, HealthRecordType, date):
-        statement = ("SELECT EntityID, DateStart, Signature FROM AuthorisedInsert WHERE HealthRecordType = %s AND PatientID= %s AND DateStart >= %s AND DateEnd IS NULL")
+        statement = ("SELECT EntityID, DateStart, Signature FROM AuthorisedInsert WHERE HealthRecordType = %s AND PatientID= %s AND (DateStart >= %s AND DateEnd IS NULL) OR (DateStart >= %s AND DateEnd <= %s)")
         try:
-            self.cursor.execute(statement, (HealthRecordType, PatientID, date,) )
+            self.cursor.execute(statement, (HealthRecordType, PatientID, date, date, date,) )
             rows = self.cursor.fetchall()
             return rows # We return the result to the caller for further processing
         except mysql.connector.Error as err:
