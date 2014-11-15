@@ -12,10 +12,10 @@ import charm.schemes.pksig.pksig_waters as pksig_waters #for the signatures
 
 class Proxy:
     def __init__(self):
-        self.setup()
+        self.__setup()
         self.reEncryptionKeys = dict()  #A dictionary of Re-Encryption Keys, stored at proxy
 
-    def setup(self):
+    def __setup(self):
         self.group = PairingGroup('SS512', secparam=1024)
         self.pre = PreGA(self.group)
         (self.master_secret_key, self.params) = self.pre.setup()
