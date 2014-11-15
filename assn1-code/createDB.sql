@@ -7,16 +7,9 @@
 
 
 -- create tables
-create table IF NOT EXISTS Patient(
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(20),
-    DoctorID VARCHAR(20),
-    HospitalID VARCHAR(20),
-    HealthClubID VARCHAR(20),
-    InsuranceID VARCHAR(20),
-    EmployerID VARCHAR(20),
-    Signature VARCHAR(1000));
-
+create table IF NOT EXISTS Proxy(
+    keystring VARCHAR(256),
+    reEncryptionKey VARCHAR(2048));
 
 create table IF NOT EXISTS HealthRecords(
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
