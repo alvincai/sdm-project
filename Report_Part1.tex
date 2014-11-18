@@ -5,7 +5,7 @@
 
 \title{Title}
 \author{Author}
-\date{Today}
+\date{\today}
 \maketitle
 \section{Dummy}
 
@@ -22,8 +22,8 @@ Note:
 \item Medical - Information from medical service provider e.g. about surgery
 \item Training - Information from Health club
 \end{itemize}
-\item We include a table (which is not displayed above) in the database that keeps track of  which signers are allowed to insert data in what time interval. This is needed to enforce access control for writing data (refer to the next chapter):
-\end{itemize}
+We include a table (which is not displayed above) in the database that keeps track of  which signers are allowed to insert data in what time interval. This is needed to enforce access control for writing data (refer to the next chapter).
+
 
 \subsection{Access Control Model}
 We use an identity based proxy re-encryption scheme coupled with an identity based signature scheme to implement access control. Together these schemes allows us to implement the four access control requirements which call for fine-grained read + write permissions, and revocation. We describe the rationale in detail below.
