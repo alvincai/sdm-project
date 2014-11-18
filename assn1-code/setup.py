@@ -1,3 +1,5 @@
+#! /usr/bin/python3
+
 from Database import *
 from Patient import *
 from Entity import *
@@ -8,13 +10,12 @@ from charm.core.engine.util import objectToBytes,bytesToObject
 from charm.core.math.integer import integer, serialize, deserialize
 import charm.schemes.pksig.pksig_waters as pksig_waters #for the signatures
 
-
 class Proxy:
     def __init__(self):
-        self.setup()
+        self.__setup()
         self.reEncryptionKeys = dict()  #A dictionary of Re-Encryption Keys, stored at proxy
 
-    def setup(self):
+    def __setup(self):
         self.group = PairingGroup('SS512', secparam=1024)
         self.pre = PreGA(self.group)
         (self.master_secret_key, self.params) = self.pre.setup()
@@ -56,8 +57,8 @@ def signKeyGen(ID, masterSK, masterPK, waters, db, group):
     sk = waters.keygen(masterPK, masterSK, ID) #generate keypair for this person
     return sk
 
-def main():
 
+def setup():
     # Setup keys and clean Database
     db1 = Database()
     db1.reset()
@@ -106,6 +107,13 @@ def main():
     Alice.store("Medical", msg4)
     Alice.store("Training", msg5)
 
+    return proxy, Alice, AIG, FitnessFirst, Ziekenhuis, Doctor
+
+def main():
+
+    proxy, Alice, AIG, FitnessFirst, Ziekenhuis, Doctor = setup()
+
+
     # Patient can read her own Medical Records
     print("Patient reading her own health records:\n")
     print("\n\tGeneral Health Records:")
@@ -117,24 +125,24 @@ def main():
 
 
     # Entity (Insurance) can read a Patient's records if assigned 'read' permission by patient
-    reEncryptionKey = Alice.genRencryptionK("General", AIG.ID, proxy)
+    reEncryptionKey = Alice.genRencryptionK("General", AIG.ID)
     print("\nRe-Encryption keys currently stored in proxy:")
     print(proxy.listRk())
     print("\nAIG tries to read General-type records of Alice:")
-    AIG.read("Alice", "General", proxy)
+    AIG.read("Alice", "General")
     print("\nAIG tries to read Medical-type records of Alice:")
-    AIG.read("Alice", "Medical", proxy)
+    AIG.read("Alice", "Medical")
     print("\nAIG tries to read Training-type records of Alice:")
-    AIG.read("Alice", "Training", proxy)
+    AIG.read("Alice", "Training")
 
     # Authorise AIG to write to Alice's record
-    print("\nAlice authorises Dr. Frankenstein to write to her Medical HealthRecord")
+    print("\nAlice authorises Dr. Frankenstein to read and write to her Medical HealthRecord")
     # Alice.authoriseEntity("Doctor Frankenstein", "Medical")
     Alice.addEntity("Doctor Frankenstein", "Medical")
     print("\nDoctor Frankenstein stores data in Alice's Medical HealthRecord")
     Doctor.store("Alice", "Medical", "Patient reported diarhea on 01-November-2014")
     print("\nHe can also read the medical part:")
-    Doctor.read("Alice", "Medical", proxy)
+    Doctor.read("Alice", "Medical")
 
     # Entity (Insurance) inserting data into Patient's record
     msg = "Estimated Time of Death: 11-November-2014"
@@ -163,7 +171,8 @@ def main():
     # AIG.store("Alice", "Medical", msg)
     # print("\nMedical Health Records after an (illegal) insert by AIG")
     # Alice.read("Medical")
+    return proxy, Alice, AIG, FitnessFirst, Ziekenhuis, Doctor
 
-    return
+
 
 if __name__ == "__main__": main()
