@@ -28,6 +28,10 @@ class Proxy:
     # note: ID1 should be the full ID string e.g. AliceGeneral
     def addKey(self, ID1, ID2, rk):
         keystring = ID1 + ":" + ID2
+
+        n = serialize(rk['N'])
+        r = objectToBytes(rk['R'], group)
+
         self.reEncryptionKeys[keystring] = rk
 
 
