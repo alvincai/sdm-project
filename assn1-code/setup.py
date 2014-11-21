@@ -31,7 +31,7 @@ class Proxy:
         keystring = ID1 + ":" + ID2
 
         n = serialize(rk['N'])
-        r = objectToBytes(rk['R'], group)
+        r = objectToBytes(rk['R'], self.group)
 
         self.reEncryptionKeys[keystring] = rk
 
